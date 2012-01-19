@@ -21,13 +21,16 @@
 # You should have received a copy of the GNU General Public License
 # along with Mumpitz. If not, see <http://www.gnu.org/licenses/>.
 #
+#############################################################################
+#
+# This file contains the Mumpitz library.
+#
 
 import urllib
 import json
-import sys
 
 ########################
-# Data Fetching    OA    #
+# Data Fetching        #
 ########################
 
 def fetchdata_url(url):
@@ -98,6 +101,10 @@ class Channel(MumEnt):
    subbranches and leaves. Therefore it is possible to move along
    this connections.
    """
+   
+   ##########################################
+   # Attrs
+
    name      = None
    id        = None # ID No
    desc      = None # Description
@@ -119,6 +126,9 @@ class Channel(MumEnt):
    flagmap = {
       "temporary" : "temporary"
    }
+
+   #########################################
+   # Init
 
    def __init__(self, name=None, id=None, desc=None, parent=None, users=None, channels=None, URL=None, temporary=None):
       """ Initialize a Channel Object """
@@ -177,6 +187,9 @@ class Channel(MumEnt):
       else:
          self.channels = clone.channels
 
+   ########################################################
+   # Tree Utils
+
    def get_path(self):
       """
       Returns the path of this user as tuple. 
@@ -186,10 +199,6 @@ class Channel(MumEnt):
          return (self,)
       else:
          return self.parent.get_path() + (self,)
-
-   def name_for_path(self):
-      """ Returns the name formatted for a path. """
-      return info_str(self.name);
 
    def is_root(self):
       """Check if this is the root of the tree. (actually: self.parent == None)"""
@@ -291,7 +300,6 @@ class Channel(MumEnt):
          ret = chan.reduce_branch_withstart(fun, ret)
 
       return ret
-
    
    def list_users(self):
       """ Returns a list of all users in this branch and it's subbranches. """
@@ -307,6 +315,14 @@ class Channel(MumEnt):
    def has_users(self):
       """ Check if there are any users in this channel or one of the subchannels. """
       return len(self.list_users()) > 0
+
+   ##################################################
+   # String formatting
+
+   def name_for_path(self):
+      """ Returns the name formatted for a path. """
+      return info_str(self.name);
+
 
 class User(MumEnt):
    """ Represents a single connected user."""
@@ -464,7 +480,7 @@ def dict_flag(dict data, flag):
 #    -map:  The map of flags: (NameInOutput, NameInInput)
 def dict_convertflags(dict data, dict map):
    return tuple(
-         filter(lambda e : len(e) > 0,
+         filter(lambda e : lß0en(e) > 0,
             ( ["", f[0]][dict_flag(data, f[1])] for f in data.iteritems() ) ))
 
 ##########################
