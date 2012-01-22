@@ -2,7 +2,7 @@
 # Data:  1/16/2012
 # Author: Karolin Varner
 # 
-# © Copyright 2012 by Karolin Varner
+# (C) Copyright 2012 by Karolin Varner
 #
 #############################################################################
 #
@@ -34,7 +34,7 @@ import json
 ########################
 
 def fetchdata_url(url):
-   return jason.loads(urllib.urlopen(url).read())
+   return json.loads(unicode(urllib.urlopen(url).read()))
 
 #########################
 # Text formatting       #
@@ -44,32 +44,32 @@ def fetchdata_url(url):
 #
 
 # Tabbed view
-sym_user          = "@"   # User Prefix
-sym_channel       = "-> " # Channel prefix
-sym_indend        = "   " # *tab* :3
+sym_user          = u"@"   # User Prefix
+sym_channel       = u"-> " # Channel prefix
+sym_indend        = u"   " # *tab* :3
 
 # Path view for channels
-sym_pathseperator = "/"   # Channel     | Path seperator
+sym_pathseperator = u"/"   # Channel     | Path seperator
 
 # Used between two text elements.
 # If the gap is short use *_short, otherwise use *_long
-sym_bridge_short = " "
-sym_bridge_long  = "."
+sym_bridge_short = u" "
+sym_bridge_long  = u"."
 
 # Minimal length for long lengths
 len_bridge_longlen = 8
 
 # User flags. Pronted behind the users
-sym_deaf          = "[8-X]"
-sym_mute          = "[:-X]"
-sym_suppress      = "[:~?]"
-sym_self_deaf     = "(Ssss)"
-sym_self_mute     = "(Mute)"
-sym_recording     = "{REC}"
-sym_priority      = "{:-D}"
+sym_deaf          = u"[8-X]"
+sym_mute          = u"[:-X]"
+sym_suppress      = u"[:~?]"
+sym_self_deaf     = u"(Ssss)"
+sym_self_mute     = u"(Mute)"
+sym_recording     = u"{REC}"
+sym_priority      = u"{:-D}"
 
 # Not avaiable error
-err_info_missing = "Not avaiable!"
+err_info_missing = u"Not avaiable!"
 
 #########################
 # Clazzes               #
@@ -77,21 +77,36 @@ err_info_missing = "Not avaiable!"
 
 class MumEnt:
    """ Mumble entity - the things Channels and Users have in common. """
-   def get_path_str(self):
+   def path(self):
       """ The path of this user formatted as string. """
-      return join_str(( e.name_for_path() for e in self.get_path() ), sym_pathseperator)
+      return join_str(( e.path_elem() for e in self.get_path() ), sym_pathseperator)
+
+   def info(self):
+      """ Dump all the information known about this. """
+      o = u""
+      if hasattr(self, "attrmap"):
+         for key in self.attrmap.keys():
+            value = info_str(getattr(self, key)).strip()
+            o += value + u"\n"
+            o += join_str((sym_channel + line for line in value.split(u"\n")))
+
+      if hasattr(self, "flagmap"):
+         flags = ( (key, getattr(self, key)) for key in self.flagmap.keys() )
+         o += u"Flags:\n"
+         o += sym_channel + join_str(map(lambda x : x[0], filter(lambda x : x[1], flags)))
+
+      return o
 
 
-   def extractdata(self, dict data):
+   def extractdata(self, data):
       """ Read as much values as possible from data and write the fields. """
       if hasattr(self, "attrmap"):
          for elem in self.attrmap.iteritems():
-            self.__setattr__(elem[0], dict_get(data, elem[1]))
+            setattr(self, elem[0], dict_get(data, elem[1]))
 
       if hasattr(self, "flagmap"):
          for elem in self.flagmap.iteritems():
-            self.__setattr__(elem[0], dict_flag(data, elem[1]))
-
+            setattr(self, elem[0], dict_flag(data, elem[1]))
 
 class Channel(MumEnt):
    """
@@ -116,15 +131,15 @@ class Channel(MumEnt):
 
    # Maps the data attrs on this class's attrs: ('class attr', 'data key')
    attrmap = {
-      "name" : "name"
-      "id"   : "id"
-      "URL"  : "x_connecturl"
-      "desc" : "description"
+      u"name" : u"name",
+      u"id"   : u"id",
+      u"URL"  : u"x_connecturl",
+      u"desc" : u"description"
    }
    
    # Maps the data flags on this class's attrs: ('class attr', 'data key')
    flagmap = {
-      "temporary" : "temporary"
+      u"temporary" : u"temporary"
    }
 
    #########################################
@@ -141,19 +156,23 @@ class Channel(MumEnt):
       self.URL       = URL
       self.temporary = temporary
 
-   def __init__(self, dict data, Channel parent=None, users=None, channels=None):
+   @classmethod
+   def from_data(clazz,chandata, parent=None, users=None, channels=None):
       """ 
       Initialize as much values as possible using extractdata(self, data) 
       (=> This is quasi an alias).
       Parent, Users and subchannels can also be set here,
       because they are tree data.
       """
+      self = clazz()
       self.parent = parent
       self.users = users
       self.channels = channels
-      self.extractdata(data)
+      self.extractdata(chandata)
+      return self
 
-   def __init__(self, Channel clone, parent="", users="", channels=""):
+   @classmethod
+   def from_clone(clazz, clone, parent=u"", users=u"", channels=u""):
       """ 
       Clone initializer.
       The data of the clone will be identical to trhe original.
@@ -162,9 +181,10 @@ class Channel(MumEnt):
       allows setting of tree data: parent, users, channels.
       The passed data will be set 
       if it is of type Channel (respectively User and list of Channels) 
-      or None. (default="" => type(channel) == str)
+      or None. (default="" => type(channel) == unicode)
       """
-      self.name      = name
+      self = clazz()
+      self.name      = clone.name
       self.id        = clone.id
       self.desc      = clone.desc
       self.users     = clone.users
@@ -172,20 +192,22 @@ class Channel(MumEnt):
       self.URL       = clone.URL
       self.temporary = clone.temporary
 
-      if (parent == None or type(parent) != str):
+      if (parent == None or type(parent) != unicode):
          self.parent = parent
       else:
          self.parent = clone.parent
 
-      if (users == None or type(users) != str):
+      if (users == None or type(users) != unicode):
          self.users = users
       else:
          self.users = clone.users
 
-      if (channels == None or type(channels) != str):
+      if (channels == None or type(channels) != unicode):
          self.channels = channels
       else:
          self.channels = clone.channels
+
+      return self
 
    ########################################################
    # Tree Utils
@@ -195,7 +217,7 @@ class Channel(MumEnt):
       Returns the path of this user as tuple. 
       Each element of the path will be a Channel/User Object
       """
-      if parent == None:
+      if self.parent == None:
          return (self,)
       else:
          return self.parent.get_path() + (self,)
@@ -236,22 +258,22 @@ class Channel(MumEnt):
       Returns a clone of this branch, where each node will be f(node).
       
       """
-      clone = Channel(self, parent)
-      clone.users = [ fun(User(u, clone)) for u in self.users ]
-      clone.channels = [ c.map_branch(fun, clone) for c in channels ]
-      return fun(c)
+      clone = Channel.from_clone(self, parent)
+      clone.users = [ fun(User.from_clone(u, clone)) for u in self.users ]
+      clone.channels = [ c.map_branch(fun, clone) for c in self.channels ]
+      return fun(clone)
 
    def clone_branch(self, parent=""):
       """
       Returns a clone of this branch as indipendent tree.
       => This branch will be the new root.
       """
-      map_branch(lambda x: x)
+      return self.map_branch(lambda x: x)
 
    def filter_tree_noclone(self, fun):
       """Self modifying filter_tree. Only used by filter_tree. Dont use :3"""
-      self.users = filter(fun, users)
-      self.channels = [ c.filter_tree_noclone() for c in filter(fun, channels)]
+      self.users = filter(fun, self.users)
+      self.channels = [ c.filter_tree_noclone(fun) for c in filter(fun, self.channels)]
       return self
 
    def filter_tree(self, fun):      
@@ -262,7 +284,7 @@ class Channel(MumEnt):
       and ALL ITS PARENTS match the function (no parent, no kid).
       This node is NOT fltered.
       """
-      return self.clone_branch().filter_tree_noclone()
+      return self.clone_branch().filter_tree_noclone(fun)
 
    def flatten(self):
       """
@@ -271,8 +293,7 @@ class Channel(MumEnt):
       totally relates to the original tree.
       The output includes this branch, it will be element zero.
       """
-      return [self] + users + [ chan.flatten() for chan in channels ]
-
+      return [self] + self.users + sum([ chan.flatten() for chan in self.channels ], [])
       
    def reduce_branch(*args):
       """
@@ -284,7 +305,7 @@ class Channel(MumEnt):
       """
       # Check args
       if len(args) < 1 or len(args) > 2:
-         raise TypeError("reduce_branch expects one or two arguments.")
+         raise TypeError(u"reduce_branch expects one or two arguments.")
 
       # Process args
       fun = args[0]
@@ -303,14 +324,14 @@ class Channel(MumEnt):
    
    def list_users(self):
       """ Returns a list of all users in this branch and it's subbranches. """
-      return filter(lambda b : type(b) == User, self.flatten())
+      return filter(lambda b : isinstance(b, User), self.flatten())
 
    def list_channels(self):
       """
       Returns a list of all channels in this branch and it's subbranches.
       This includes this Channel itself.
       """
-      return filter(lambda b : type(b) == Channel, self.flatten())
+      return filter(lambda b : isinstance(b, Channel), self.flatten())
 
    def has_users(self):
       """ Check if there are any users in this channel or one of the subchannels. """
@@ -319,10 +340,32 @@ class Channel(MumEnt):
    ##################################################
    # String formatting
 
-   def name_for_path(self):
+   def get_name(self):
+      """ Get the name """
+      return info_str(self.name)
+   
+   def path_elem(self):
       """ Returns the name formatted for a path. """
-      return info_str(self.name);
+      return self.get_name()
 
+   def representation(self):
+      """ Return a short one-line representation of this channel. """
+      return sym_channel + self.get_name()
+
+   def full_representation(self):
+      return self.path() #+ u": " + info_str(self.URL)
+
+   def overview(self, indend=0):
+      """Generate overview for this channel/branch"""
+      # This channels name & Url
+      o  = [sym_indend*indend + sym_channel + self.get_name()]
+      # + ":" + sym_indend*2 + info_str(self.URL, "")] # Could add url
+      o += [sym_indend*(indend+2) + u.overview() for u in self.users ]
+      o += [c.overview(indend+1) for c in self.channels]
+      return join_str(o, u"\n").replace(u'\n\n', u'\n')
+
+   def __str__(self):
+      return self.full_representation()
 
 class User(MumEnt):
    """ Represents a single connected user."""
@@ -333,34 +376,34 @@ class User(MumEnt):
    comment    = None # Self-set comment of the user
    avatar     = None # Avatar
    deaf       = None # Flag
-   muted      = None # Flag
+   mute      = None # Flag
    suppressed = None # Flag
-   selfmuted  = None # Flag
+   selfmute  = None # Flag
    selfdeaf   = None # Flag
    recording  = None # Flag
    priority   = None # Flag
 
    # Maps the data attrs on this class's attrs: ('class attr', 'data key')
    attrmap = {
-      "name"      : "name"
-      "id"        : "userid"
-      "address"   : "x_addrstring"
-      "comment"   : "comment"
-      "avatar"    : "x_texture"
+      u"name"      : u"name",
+      u"id"        : u"userid",
+      u"address"   : u"x_addrstring",
+      u"comment"   : u"comment",
+      u"avatar"    : u"x_texture"
    }
    
    # Maps the data flags on this class's attrs: ('class attr', 'data key')
    flagmap = {
-      "deaf"      : "deaf"
-      "muted"     : "mute"
-      "suppressed": "suppress"
-      "selfmuted" : "selfMute"
-      "selfdeaf"  : "selfDeaf"
-      "recording" : "recording"
-      "priority"  : "prioritySpeaker"
+      u"deaf"      : u"deaf",
+      u"mute"      : u"mute",
+      u"suppressed": u"suppress",
+      u"selfmute"  : u"selfMute",
+      u"selfdeaf"  : u"selfDeaf",
+      u"recording" : u"recording",
+      u"priority"  : u"prioritySpeaker"
    }
 
-   def __init__(self, name=None, id=None, channel=None, address=None, comment=None, avatar=None, deaf=None, muted=None, suppressed=None, selfmuted=None, selfdeaf=None, recording=None, priority=None):
+   def __init__(self, name=None, id=None, channel=None, address=None, comment=None, avatar=None, deaf=None, mute=None, suppressed=None, selfmute=None, selfdeaf=None, recording=None, priority=None):
       """ Initialize as much values as given, the rest is None """
       self.name       = name
       self.id         = id
@@ -369,23 +412,27 @@ class User(MumEnt):
       self.comment    = comment
       self.avatar     = avatar
       self.deaf       = deaf
-      self.muted      = muted
+      self.mute      = mute
       self.suppressed = suppressed
-      self.selfmuted  = selfmuted
+      self.selfmute  = selfmute
       self.selfdeaf   = selfdeaf
       self.recording  = recording
       self.priority   = priority
 
-   def __init__(self, dict data, Channel chan=None):
+   @classmethod
+   def from_data(clazz, data, chan=None):
       """
       Initialize as much values as possible using extractdata(self, data)
       (=> This is quasi an alias).
       channel can also be set this way, beacause it is tree data.
       """
+      self = clazz()
       self.channel = chan
       self.extractdata(data)
+      return self
 
-   def __init__(self, User clone, Channel chan=""):
+   @classmethod
+   def from_clone(clazz, clone, chan=u""):
       """
       Clone initializer.
       Like the data dict initializer,
@@ -393,26 +440,32 @@ class User(MumEnt):
       The passed channel data will be set 
       if it is of type Channel or None. (default="" => type(channel) == str)
       """
+      self = clazz()
       self.name       = clone.name
       self.id         = clone.id
       self.address    = clone.address
       self.comment    = clone.comment
       self.avatar     = clone.avatar
       self.deaf       = clone.deaf
-      self.muted      = clone.muted
+      self.mute      = clone.mute
       self.suppressed = clone.suppressed
-      self.selfmuted  = clone.selfmuted
+      self.selfmute   = clone.selfmute
       self.selfdeaf   = clone.selfdeaf
       self.recording  = clone.recording
       self.priority   = clone.priority
 
-      if (chan == None or type(chan) == Channel):
+      if (chan == None or isinstance(chan, Channel)):
          self.channel = chan
       else:
          self.channel = clone.channel
 
+      return self
+
    def get_path(self):
-      """ Returns the path of this user as tuple. Each element of the path will be a Channel/User Object """
+      """
+      Returns the path of this user as tuple. 
+      Each element of the path will be a Channel/User Object.
+      """
       assert channel != None
       return channel.get_path() + (self,)
 
@@ -420,23 +473,76 @@ class User(MumEnt):
       """ Returns the name formatted for a path. """
       return "@" + info_str(name);
 
+   ##################################################
+   # String formatting
+
+   def flags_tostr(self):
+      o = ""
+      
+      # Self mute | deaf
+      if self.selfdeaf:
+         o += sym_self_deaf
+      elif self.selfmute:
+         o += sym_self_mute
+
+      # Supressed
+      if self.suppressed:
+         o += sym_suppress
+
+      # Mute | Deaf
+      if self.deaf:
+         o += sym_deaf
+      elif self.mute:
+         o += sym_mute
+
+      # --
+      if self.recording:
+         o += sym_recording
+      
+      if self.priority:
+         o += sym_priority
+
+      return o
+
+   def get_name(self):
+      """ Get the name """
+      return info_str(self.name)
+   
+   def path_elem(self):
+      """ Returns the name formatted for a path. """
+      return sym_user + self.get_name()
+
+   def representation(self):
+      """ Return a short one-line representation of this channel. """
+      return sym_user + self.get_name()
+
+   def full_representation(self):
+      return self.path()
+
+   def overview(self, indend=0):
+      """Generate overview for this channel/branch"""
+      return self.representation() + "  " + self.flags_tostr()
+
+   def __str__(self):
+      return self.overview()
+
 ########################
 # Information          #
 ########################
 
-def info_avaiable(dict info):
+def info_avaiable(info):
    """ Computes if the given information is avaiable (actually: x -> x == None) """
-   return info == None
+   return info != None
 
-def info_str(sict info, str err=err_info_missing):
+def info_str(info, err=err_info_missing):
    """
    Convert an infromation to a string.
    actually: x,err -> x == None: err
                       otherwise: str(x)
    """
    if info_avaiable(info):
-      return str(info)
-   else
+      return unicode(info)
+   else:
       return err
 
 ########################
@@ -449,20 +555,20 @@ def join(l):
 
 def join_str(l, sep=" "):
    """ Joins all the elements of l as a string """
-   return reduce(lambda a, b: str(a) + sep + str(b)), l)
+   return reduce(lambda a, b: unicode(a) + sep + unicode(b), l, "")
 
 ########################
 # Dict                 #
 ########################
 
-def dict_get(dict data, field):
+def dict_get(data, field):
    """Read a field from a data. Returns the value if possible and None if not."""
-   if (flag in data):
-      return data[flag]
+   if (field in data):
+      return data[field]
    else:
       return None
 
-def dict_flag(dict data, flag):
+def dict_flag(data, flag):
    """
    Read a flag from data. 
    The flag is true if it is set as true, #
@@ -478,9 +584,9 @@ def dict_flag(dict data, flag):
 # Args:
 #    -data: The dict from which the flags should be extracted
 #    -map:  The map of flags: (NameInOutput, NameInInput)
-def dict_convertflags(dict data, dict map):
+def dict_convertflags(data, map):
    return tuple(
-         filter(lambda e : lß0en(e) > 0,
+         filter(lambda e : len(e) > 0,
             ( ["", f[0]][dict_flag(data, f[1])] for f in data.iteritems() ) ))
 
 ##########################
@@ -493,11 +599,10 @@ def gatherinfo_chan(chandata, parent=None):
    Transform the informatin in data in Channel and User objects.
    Returns the Root Channel Object.
    """
-   chan = Channel(chandata, parent)
-   chan.users = [ User(udat, chan) for udat in chandata['users'] ]
-   chan.channels = [ gatherinfo_chan(cdat, chan) for cdat in chandata['channels'] ]
+   chan = Channel.from_data(chandata, parent)
+   chan.users = [ User.from_data(udat, chan) for udat in chandata[u'users'] ]
+   chan.channels = [ gatherinfo_chan(cdat, chan) for cdat in chandata[u'channels'] ]
    return chan
 
-############################
-# Information Display      #
-############################
+def create_tree(url):
+   return gatherinfo_chan(fetchdata_url(url)[u'root'])

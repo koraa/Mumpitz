@@ -1,9 +1,9 @@
-#! /user/bin/env python
+#! /usr/bin/env python
 #
-# Data:  1/19/2012
+# Data:   1/19/2012
 # Author: Karolin Varner
-# 
-# © Copyright 2012 by Karolin Varner
+#
+# (C) Copyright 2012 by Karolin Varner
 #
 #############################################################################
 #
@@ -28,23 +28,67 @@
 #
 
 import sys
+import inspect
 import argparse
 import mumpitz
 
-parameters = [
-]
 
-commands = [
+##################
+# Commands
 
-]
+# The prefix any invokable command starts with
+prefix_command = "command_"
 
-def parseoptions(argv, defs):
-   """
-   Takes a 
+def command_overview(tree, args):
+    def ft(node):
+        if not isinstance(node, mumpitz.Channel):
+            return True
+        elif node.parent==None:
+            return True
+        else:
+            return node.parent.has_users()
+    print(tree.filter_tree(ft).overview())
+    
+def command_dump_channels(tree, args):
+    for e in filter( lambda x : isinstance(x, mumpitz.Channel), tree.flatten()):
+        print(unicode(e))
 
-def main(argv):
-   pareseoptions(argv)
+def command_dump_users(tree, args):
+    for e in filter( lambda x : isinstance(x,mumpitz.User), tree.flatten()):
+        print(unicode(e))
 
-# Exec main
-if __name__ == "__main__":
-    main(sys.argv)
+def command_dump(tree, args):
+    command_dump_users(tree, args)
+    command_dump_channels(tree, args)
+
+##################
+#
+
+def list_commands():
+    """ Generate a dict like {name, command} """
+    # List all elements in this module => ( ($(prefix_command) + name, object|function|else), )
+    members = inspect.getmembers(sys.modules[__name__])
+    # Only allow  functions with name pattern "$(prefix_command).*" => ( ($(prefix_command) + name, function), ) 
+    members = filter(lambda m : inspect.isfunction(m[1]) and m[0].startswith(prefix_command), members)
+    # Remove the $(command_prefix) from the name => ( (name, function),  )
+    members = map(lambda f : (f[0][len(prefix_command):], f[1]), members)
+    # Convert to dict => { name: function }
+    return dict(members)
+
+def getargs():
+    """ Parse any arguments """
+    parser = argparse.ArgumentParser(add_help=True)
+    parser.add_argument(
+        '--url', '-u', dest="url", 
+        default="http://www.nooblounge.net/mumble-django/mumble/1.json")
+    parser.add_argument('command', default='overview')
+    return parser.parse_args()
+
+commands = list_commands()
+args = getargs()
+
+cmdargs = []
+tree = mumpitz.create_tree(args.url)
+
+# Call the specified command
+commands[args.command](tree, cmdargs)
