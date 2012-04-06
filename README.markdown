@@ -1,6 +1,6 @@
 
 Mumpitz is a lib for parsing and working with mumble state information.
-*Developement Status* Beta (Runs stable, but untested)
+<b>Developement Status:</b> Beta (Runs stable, but untested)
 
 Done
 ----
